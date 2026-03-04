@@ -19,7 +19,4 @@ venv/
 
 # Local overrides
 *.local.yaml
-./docs/
-docs/ARTICLE.md
-docs/
-docs/PUBLISHING_CHECKLIST.md
+docs/*
