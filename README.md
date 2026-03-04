@@ -70,10 +70,6 @@ No secrets required for **public** repos; `GITHUB_TOKEN` can push to GHCR.
 | Terraform   | Optional: manage K8s namespace/resources|
 | Bash/Python | Scripts and app code                    |
 
-## Article
-
-See **[docs/ARTICLE.md](docs/ARTICLE.md)** for the full technical article you can publish on **dev.to** or **Hashnode**. It walks through the pipeline, design decisions, and how to run it locally or with GitHub Actions.
-
 ## License
 
-MIT.
+[MIT](LICENSE)
