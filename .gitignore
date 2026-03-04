@@ -19,3 +19,5 @@ venv/
 
 # Local overrides
 *.local.yaml
+docs/
+docs
