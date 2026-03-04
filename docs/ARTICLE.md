@@ -1,45 +1,56 @@
 ---
-title: "Build a zero-cost end-to-end DevOps pipeline (GitHub Actions + Docker + Kubernetes + Docker Hub)"
+title: "I built a zero-cost end-to-end DevOps pipeline (GitHub Actions + Docker + Kubernetes + Docker Hub)"
 published: false
-description: "Ship a tiny Flask service from git push → container build → Docker Hub → Kubernetes (locally with minikube/kind). Includes health probes, resource limits, and optional Terraform."
+description: "How I wired a tiny Flask app from git push → container build → Docker Hub → Kubernetes (locally with kind/minikube). You can copy this for your own portfolio."
 tags: devops,cicd,githubactions,docker,kubernetes,dockerhub,terraform
 ---
 
-This repo is a practical, portfolio-ready **end-to-end pipeline** you can run without paying for cloud compute:
+I just finished a small but **real** DevOps project and I want to share it in case you’re trying to build your own portfolio.
 
-- **Code**: a minimal Flask API (`app/main.py`)
-- **Container**: a Docker image built from `app/Dockerfile`
-- **CI/CD**: GitHub Actions builds and publishes to **Docker Hub** (`.github/workflows/ci-cd.yaml`)
-- **Deploy**: Kubernetes `Deployment` + `Service` with probes and limits (`k8s/*.yaml`)
-- **IaC (optional)**: Terraform creates the Kubernetes namespace (`terraform/*.tf`)
+The idea was simple: **take a tiny app and wire the whole path from `git push` → CI/CD → container registry → Kubernetes**, without paying for any cloud resources. I also wanted something I could point to on freelance platforms and in interviews.
 
-The goal is to demonstrate the real flow clients/interviewers expect: **repo → CI build → registry → runnable deployment**.
+You can grab the code here:
 
-## What you’re building (high level)
+- **GitHub repo**: `https://github.com/rufilboss/devops-e2e-pipeline`
+- **Docker Hub image**: `docker.io/asruf/demo-app:latest`
 
-```mermaid
-flowchart TD
-  A[git push / PR] --> B[GitHub Actions]
-  B --> C[Build Docker image]
-  C --> D[Push image to Docker Hub]
-  D --> E[Kubernetes Deployment]
-  E --> F[Service + port-forward]
-```
+---
 
-## Prerequisites
+## What I built (high level)
 
-- **Git** and a GitHub repo
-- **Docker** (or another container runtime)
-- **kubectl**
-- **One local Kubernetes option**
-  - **minikube**, or
-  - **kind**
-- **Terraform** (optional, only if you want the IaC section)
+Concretely, the project contains:
 
-## Repo layout
+- **App**: Tiny Flask API (`app/main.py`)
+- **Container**: Dockerfile (`app/Dockerfile`)
+-, **CI/CD**: GitHub Actions workflow that builds and pushes images to **Docker Hub** (`.github/workflows/ci-cd.yaml`)
+- **Kubernetes**: `Deployment` + `Service` (`k8s/*.yaml`)
+- **Terraform (optional)**: creates the Kubernetes namespace (`terraform/*.tf`)
+
+Everything here runs **for free** on a local cluster (kind or minikube) and a free Docker Hub + GitHub account.
+
+---
+
+## Prerequisites I used
+
+To follow exactly what I did, you’ll want:
+
+- Git + GitHub repo
+- Docker
+- `kubectl`
+- One local Kubernetes option:
+  - **kind** (what I used), or
+  - **minikube**
+- Terraform (optional, only for the IaC part)
+- A **Docker Hub** account (I used `asruf`)
+
+---
+
+## Project layout
+
+This is the layout of the repo:
 
 ```text
-.
+devops-e2e-pipeline/
 ├── app
 │   ├── Dockerfile
 │   ├── main.py
@@ -55,13 +66,17 @@ flowchart TD
         └── ci-cd.yaml
 ```
 
-## 1) The application: minimal, probe-friendly HTTP service
+---
 
-The app exposes:
+## 1) The app I used (simple Flask service)
 
-- `/` — returns service metadata (useful for “is it running?” checks)
-- `/health` — liveness probe endpoint
-- `/ready` — readiness probe endpoint
+I deliberately kept the app tiny so the focus is on the **pipeline**, not the code.
+
+It exposes:
+
+- `/` — info about the service (name, version, env, status)
+- `/health` — liveness
+- `/ready` — readiness
 
 `app/main.py`:
 
@@ -95,7 +110,7 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
 ```
 
-Dependencies stay intentionally small:
+Dependencies:
 
 `app/requirements.txt`:
 
@@ -103,13 +118,17 @@ Dependencies stay intentionally small:
 flask>=3.0.0
 ```
 
-## 2) Containerize it with Docker
+The app listens on **port 8080**, which I re-use everywhere (Docker, Kubernetes, port-forward, etc.).
 
-This repo’s Dockerfile does a few “real world” basics:
+---
 
-- Uses a slim base image
-- Runs as a **non-root** user
-- Installs dependencies and keeps layers simple
+## 2) Containerizing it with Docker
+
+My Dockerfile is intentionally straightforward but shows some basic good practices:
+
+- Slim base image
+- Non-root user
+- Requirements installed in their own layer
 
 `app/Dockerfile`:
 
@@ -132,99 +151,178 @@ ENV FLASK_APP=main.py
 CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8080"]
 ```
 
-Run it locally:
+### Local sanity check
+
+From the repo root:
 
 ```bash
+cd devops-e2e-pipeline
+
 docker build -t demo-app:local ./app
-docker run --rm -p 8080:8080 demo-app:local
-curl -s http://localhost:8080 | jq .
+docker run --rm -p 8080:8080 --name demo-app-test demo-app:local
+
+# In another terminal:
+curl -s http://localhost:8080/health
+curl -s http://localhost:8080/
 ```
 
-If you don’t have `jq`, just open `http://localhost:8080` in a browser.
+That gave me:
 
-Example Docker build output:
+- `{"status": "healthy"}` from `/health`
+- `{"env":"dev","service":"demo-app","status":"ok","version":"1.0.0"}` from `/`
 
-![Building the Docker image](../images/docker-build.png)
+Once that worked, I moved on to Kubernetes.
 
-Example `docker run` output:
+---
 
-![Running the container locally](../images/docker-run.png)
+## 3) Running it on Kubernetes (kind or minikube)
 
-Example `curl` output against `/health`:
+I wanted a “real” deployment with:
 
-![Health endpoint response](../images/curl-health.png)
+- A dedicated namespace
+- 2 replicas
+- Liveness/readiness probes
+- Resource requests/limits
 
-Example `curl` output against `/`:
+### Starting a local cluster
 
-![Root endpoint response](../images/curl-root.png)
+You can use either tool; I used **kind**, but here are both options.
 
-## 3) Deploy to Kubernetes (local cluster, zero cloud cost)
-
-The Kubernetes manifests in this repo:
-
-- Create a dedicated namespace: `k8s/namespace.yaml`
-- Deploy 2 replicas with resource requests/limits and probes: `k8s/deployment.yaml`
-- Expose as a ClusterIP `Service` (we’ll port-forward for local access)
-
-### Start a cluster
-
-Minikube:
+**minikube:**
 
 ```bash
 minikube start
 ```
 
-Kind:
+**kind:**
 
 ```bash
 kind create cluster --name demo
 ```
 
-Example kind cluster creation:
+### Making the image visible to the cluster
 
-![kind create cluster output](../images/kind-create-cluster.png)
+Kubernetes can’t automatically see `demo-app:local` unless you either:
 
-### Make the image available to the cluster
+- build inside the cluster’s Docker daemon (minikube), or
+- load the image into kind.
 
-Kubernetes can’t pull `demo-app:local` from your laptop unless you load it into the cluster runtime.
-
-**Option A: minikube (build directly into the minikube Docker daemon)**
+**Option A: minikube**
 
 ```bash
 eval "$(minikube docker-env)"
 docker build -t demo-app:local ./app
 ```
 
-**Option B: kind (load your locally-built image into kind)**
+**Option B: kind** (what I used):
 
 ```bash
 docker build -t demo-app:local ./app
 kind load docker-image demo-app:local --name demo
 ```
 
-Example kind image load:
+### Kubernetes manifests I used
 
-![kind load docker-image output](../images/kind-load-image.png)
+Namespace:
 
-### Apply manifests and test
+`k8s/namespace.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-app
+  labels:
+    app.kubernetes.io/name: demo-app
+```
+
+Deployment + Service:
+
+`k8s/deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: demo-app
+  labels:
+    app: demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+        - name: app
+          # Local image for kind/minikube:
+          # image: demo-app:local
+          # Docker Hub image (asruf/demo-app) when using CI/CD:
+          image: docker.io/asruf/demo-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: ENV
+              value: "production"
+            - name: APP_VERSION
+              value: "1.0.0"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: demo-app
+  labels:
+    app: demo-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: demo-app
+```
+
+### Applying and testing
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/deployment.yaml
 
 kubectl get pods,svc -n demo-app
+
 kubectl port-forward -n demo-app svc/demo-app 8080:80
 ```
 
-Example `kubectl apply` and `kubectl get`:
-
-![kubectl apply / get output](../images/kubectl-apply-get.png)
-
-Example `kubectl port-forward`:
-
-![kubectl port-forward output](../images/kubectl-port-forward.png)
-
-Now hit:
+Then in another terminal:
 
 ```bash
 curl -s http://localhost:8080/health
@@ -232,97 +330,115 @@ curl -s http://localhost:8080/ready
 curl -s http://localhost:8080/
 ```
 
-## 4) CI/CD: build and publish to Docker Hub with GitHub Actions
+At this point I had the app running as **2 replicas in a local cluster**, fronted by a Service, with working probes.
 
-The workflow file is already in the repo:
+---
 
-`/.github/workflows/ci-cd.yaml`
+## 4) Pushing to Docker Hub
 
-It does the core CI/CD loop:
-
-- Trigger on **push** and **pull_request**
-- Build the Docker image
-- Push to Docker Hub **only on push** (PRs build, but don’t publish)
-- Tag images with:
-  - the commit SHA (`type=sha`)
-  - `latest` (only on your default branch)
-
-### Docker Hub setup
-
-1. Create a **Docker Hub** account (if you don’t have one) and a repository called `demo-app`.
-2. In Docker Hub, generate an **access token**.
-3. In your GitHub repo → **Settings → Secrets and variables → Actions**, create:
-   - `DOCKERHUB_USERNAME` — your Docker Hub username
-   - `DOCKERHUB_TOKEN` — the access token
-
-The workflow will log in to Docker Hub with those secrets and push images to:
-
-- `docker.io/asruf/demo-app:<git-sha>`
-- `docker.io/asruf/demo-app:latest` (only on the default branch)
-
-## 5) Deploy using the Docker Hub image (instead of local)
-
-To deploy using the image produced by CI/CD, update the image in `k8s/deployment.yaml` (already set in this repo):
-
-```yaml
-image: docker.io/asruf/demo-app:latest
-```
-
-Then apply again:
+My Docker Hub username is **`asruf`**. I first pushed manually to make sure everything worked:
 
 ```bash
-kubectl apply -f k8s/deployment.yaml
+docker tag demo-app:local asruf/demo-app:latest
+docker push asruf/demo-app:latest
 ```
 
-## 6) Optional IaC: Terraform (Kubernetes provider)
+After that, the image was available at:
 
-If you want an Infrastructure-as-Code checkbox in the project, the repo includes Terraform that creates the namespace:
+- `docker.io/asruf/demo-app:latest`
 
-- `terraform/main.tf` — provider setup
-- `terraform/k8s.tf` — `kubernetes_namespace` resource
+That’s the image the Kubernetes manifest uses by default in this repo.
 
-Run it against your local cluster kubeconfig:
+---
+
+## 5) CI/CD with GitHub Actions → Docker Hub
+
+I wanted the pipeline to:
+
+- Build the image on every push / PR
+- Push to Docker Hub on pushes (not PRs)
+- Tag images with:
+  - the commit SHA
+  - `latest` (for the default branch)
+
+The workflow is at `./.github/workflows/ci-cd.yaml`.
+
+### Docker Hub secrets
+
+In my GitHub repo I created 2 **Actions secrets**:
+
+- `DOCKERHUB_USERNAME` — `asruf`
+-, `DOCKERHUB_TOKEN` — a Docker Hub access token
+
+You can find these in:
+
+> GitHub repo → Settings → Secrets and variables → Actions
+
+### What the workflow does
+
+High level:
+
+- Check out code
+- Set up Buildx
+- Log in to Docker Hub with `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN`
+- Build the Docker image from `./app`
+- Tag it with SHA + `latest`
+- Push to `docker.io/asruf/demo-app`
+
+So every push to `main` automatically gives me a fresh image on Docker Hub, ready for Kubernetes.
+
+---
+
+## 6) Optional: Terraform for the namespace
+
+I also wanted at least one **Infrastructure as Code** piece in here, so I used Terraform’s Kubernetes provider to create the namespace.
+
+`terraform/main.tf` (provider + versions) and `terraform/k8s.tf` (namespace resource) are already in the repo.
+
+If your `~/.kube/config` points at a running cluster:
 
 ```bash
 cd terraform
+
 terraform init
 terraform plan
 terraform apply
 ```
 
-This is intentionally “small but real”: it demonstrates Terraform workflow and state management without needing AWS/GCP.
+This is small on purpose, but it’s enough to say **“I manage part of the Kubernetes infrastructure with Terraform”**.
 
-## Troubleshooting (the common failures)
+---
 
-### `ImagePullBackOff`
+## 7) How you can reuse this
 
-- You pointed Kubernetes at `ghcr.io/...` but the image/package is private
-- You didn’t create an `imagePullSecret`, or didn’t wire it into the Deployment
-- The tag doesn’t exist (`latest` only appears on pushes to the default branch)
+If you want to adapt this project for yourself:
 
-### Pod never becomes Ready
+- Fork the repo or copy the layout
+- Change the **Docker Hub** username and repo name
+- Update:
+  - `k8s/deployment.yaml` `image:` field
+  - GitHub Actions secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`)
+- Swap the Flask app for your own service if you like
 
-- Check probes are reachable from inside the cluster:
+The nice part is that the pattern stays the same:
 
-```bash
-kubectl -n demo-app describe pod <pod-name>
-kubectl -n demo-app logs deploy/demo-app
-```
+> **App → Docker → Docker Hub → Kubernetes → (optional) Terraform**
 
-### Kind can’t see your local image
+Once this pipeline is in your portfolio, you can honestly tell people:
 
-- You built the image locally, but forgot:
+> “I’ve built and maintained an end-to-end CI/CD pipeline with GitHub Actions, Docker, Kubernetes, Docker Hub, and Terraform. Here’s the repo and here’s the running app.”
 
-```bash
-kind load docker-image demo-app:local --name demo
-```
+---
 
-## Next steps (if you want to evolve this into “production-like”)
+## Final thoughts
 
-- Add lint/test to CI (e.g. `ruff`, `pytest`)
-- Add vulnerability scanning (Trivy) and/or SBOM generation
-- Add an Ingress (and TLS via cert-manager) for a real hostname
-- Add GitOps (Argo CD or Flux) so deploys happen via manifests, not imperative kubectl
-- Add a separate deploy job for a real cluster (self-hosted runner or GitOps sync)
+This project is small, but it touches a lot of the buzzwords you see in job posts and freelance gigs:
 
-- **Repo**: `https://github.com/rufilboss/devops-e2e-pipeline`
+- GitHub Actions
+- Docker
+- Docker Hub
+- Kubernetes
+- Terraform
+
+If you’re trying to break into DevOps or just want something concrete to show, feel free to **clone my repo, run it locally, and then customize it** to match your own style and stack.
+
