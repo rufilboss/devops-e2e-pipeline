@@ -21,7 +21,7 @@ By the end, you’ll have a repo you can point to in proposals and interviews: *
 
 ## What we’re building (high level)
 
-```
+```bash
 GitHub repo (code)
        ↓
 GitHub Actions (on push/PR)
@@ -349,25 +349,33 @@ Your kubeconfig (e.g. from minikube or kind) must point to a running cluster. Th
 
 1. **Clone the repo** (or use the same layout locally).
 2. **Build image and run with Docker** (optional sanity check):
+
    ```bash
    docker build -t demo-app ./app
    docker run -p 8080:8080 demo-app
    ```
+
 3. **Start a cluster** (minikube or kind):
+
    ```bash
    minikube start
    # or: kind create cluster --name demo
    ```
+
 4. **Load local image into cluster** (minikube):
+
    ```bash
    eval $(minikube docker-env)
    docker build -t demo-app:local ./app
    ```
+
 5. **Deploy:**
+
    ```bash
    kubectl apply -f k8s/
    kubectl port-forward -n demo-app svc/demo-app 8080:80
    ```
+
 6. **Use GHCR image instead:**  
    Set in `k8s/deployment.yaml`: `image: ghcr.io/YOUR_USERNAME/demo-app:latest`, set `imagePullPolicy: Always` (or omit for default), and ensure the cluster can pull from GHCR (e.g. public package or imagePullSecret).
 
