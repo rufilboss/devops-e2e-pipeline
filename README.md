@@ -47,8 +47,6 @@ devops-e2e-pipeline/
 ├── .github/
 │   └── workflows/
 │       └── ci-cd.yaml       # Build, test, push to GHCR
-├── docs/
-│   └── ARTICLE.md          # Full technical article (dev.to / hashnode)
 └── README.md
 ```
 
