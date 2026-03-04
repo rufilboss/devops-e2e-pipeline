@@ -22,7 +22,7 @@ Concretely, the project contains:
 
 - **App**: Tiny Flask API (`app/main.py`)
 - **Container**: Dockerfile (`app/Dockerfile`)
--, **CI/CD**: GitHub Actions workflow that builds and pushes images to **Docker Hub** (`.github/workflows/ci-cd.yaml`)
+- **CI/CD**: GitHub Actions workflow that builds and pushes images to **Docker Hub** (`.github/workflows/ci-cd.yaml`)
 - **Kubernetes**: `Deployment` + `Service` (`k8s/*.yaml`)
 - **Terraform (optional)**: creates the Kubernetes namespace (`terraform/*.tf`)
 
@@ -173,6 +173,16 @@ That gave me:
 
 Once that worked, I moved on to Kubernetes.
 
+Here are the screenshots from my terminal while doing this:
+
+![Building the Docker image](../images/docker-build.png)
+
+![Running the container locally](../images/docker-run.png)
+
+![Health endpoint response](../images/curl-health.png)
+
+![Root endpoint response](../images/curl-root.png)
+
 ---
 
 ## 3) Running it on Kubernetes (kind or minikube)
@@ -200,6 +210,10 @@ minikube start
 kind create cluster --name demo
 ```
 
+Here’s what that looked like for me:
+
+![kind create cluster output](../images/kind-create-cluster.png)
+
 ### Making the image visible to the cluster
 
 Kubernetes can’t automatically see `demo-app:local` unless you either:
@@ -220,6 +234,10 @@ docker build -t demo-app:local ./app
 docker build -t demo-app:local ./app
 kind load docker-image demo-app:local --name demo
 ```
+
+And the `kind load` output:
+
+![kind load docker-image output](../images/kind-load-image.png)
 
 ### Kubernetes manifests I used
 
@@ -330,6 +348,14 @@ curl -s http://localhost:8080/ready
 curl -s http://localhost:8080/
 ```
 
+Here’s the `kubectl apply` / `kubectl get` snapshot:
+
+![kubectl apply / get output](../images/kubectl-apply-get.png)
+
+And the port-forward:
+
+![kubectl port-forward output](../images/kubectl-port-forward.png)
+
 At this point I had the app running as **2 replicas in a local cluster**, fronted by a Service, with working probes.
 
 ---
@@ -368,7 +394,7 @@ The workflow is at `./.github/workflows/ci-cd.yaml`.
 In my GitHub repo I created 2 **Actions secrets**:
 
 - `DOCKERHUB_USERNAME` — `asruf`
--, `DOCKERHUB_TOKEN` — a Docker Hub access token
+- `DOCKERHUB_TOKEN` — a Docker Hub access token
 
 You can find these in:
 
@@ -407,6 +433,10 @@ terraform apply
 
 This is small on purpose, but it’s enough to say **“I manage part of the Kubernetes infrastructure with Terraform”**.
 
+Here’s what my `terraform init` + `terraform plan` looked like:
+
+![Terraform init/plan output](../images/terraform-plan.png)
+
 ---
 
 ## 7) How you can reuse this
@@ -441,4 +471,3 @@ This project is small, but it touches a lot of the buzzwords you see in job post
 - Terraform
 
 If you’re trying to break into DevOps or just want something concrete to show, feel free to **clone my repo, run it locally, and then customize it** to match your own style and stack.
-
