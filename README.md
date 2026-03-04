@@ -31,7 +31,7 @@ kubectl port-forward -n demo-app svc/demo-app 8080:80
 
 ## Project Layout
 
-```
+```bash
 devops-e2e-pipeline/
 ├── app/                    # Application source
 │   ├── Dockerfile
