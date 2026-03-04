@@ -1,15 +1,15 @@
 ---
-title: "Build a zero-cost end-to-end DevOps pipeline (GitHub Actions + Docker + Kubernetes + GHCR)"
+title: "Build a zero-cost end-to-end DevOps pipeline (GitHub Actions + Docker + Kubernetes + Docker Hub)"
 published: false
-description: "Ship a tiny Flask service from git push → container build → GHCR → Kubernetes (locally with minikube/kind). Includes health probes, resource limits, and optional Terraform."
-tags: devops,cicd,githubactions,docker,kubernetes,ghcr,terraform
+description: "Ship a tiny Flask service from git push → container build → Docker Hub → Kubernetes (locally with minikube/kind). Includes health probes, resource limits, and optional Terraform."
+tags: devops,cicd,githubactions,docker,kubernetes,dockerhub,terraform
 ---
 
 This repo is a practical, portfolio-ready **end-to-end pipeline** you can run without paying for cloud compute:
 
 - **Code**: a minimal Flask API (`app/main.py`)
 - **Container**: a Docker image built from `app/Dockerfile`
-- **CI/CD**: GitHub Actions builds and publishes to **GitHub Container Registry (GHCR)** (`.github/workflows/ci-cd.yaml`)
+- **CI/CD**: GitHub Actions builds and publishes to **Docker Hub** (`.github/workflows/ci-cd.yaml`)
 - **Deploy**: Kubernetes `Deployment` + `Service` with probes and limits (`k8s/*.yaml`)
 - **IaC (optional)**: Terraform creates the Kubernetes namespace (`terraform/*.tf`)
 
@@ -21,7 +21,7 @@ The goal is to demonstrate the real flow clients/interviewers expect: **repo →
 flowchart TD
   A[git push / PR] --> B[GitHub Actions]
   B --> C[Build Docker image]
-  C --> D[Push image to GHCR]
+  C --> D[Push image to Docker Hub]
   D --> E[Kubernetes Deployment]
   E --> F[Service + port-forward]
 ```
@@ -142,6 +142,22 @@ curl -s http://localhost:8080 | jq .
 
 If you don’t have `jq`, just open `http://localhost:8080` in a browser.
 
+Example Docker build output:
+
+![Building the Docker image](../images/docker-build.png)
+
+Example `docker run` output:
+
+![Running the container locally](../images/docker-run.png)
+
+Example `curl` output against `/health`:
+
+![Health endpoint response](../images/curl-health.png)
+
+Example `curl` output against `/`:
+
+![Root endpoint response](../images/curl-root.png)
+
 ## 3) Deploy to Kubernetes (local cluster, zero cloud cost)
 
 The Kubernetes manifests in this repo:
@@ -164,6 +180,10 @@ Kind:
 kind create cluster --name demo
 ```
 
+Example kind cluster creation:
+
+![kind create cluster output](../images/kind-create-cluster.png)
+
 ### Make the image available to the cluster
 
 Kubernetes can’t pull `demo-app:local` from your laptop unless you load it into the cluster runtime.
@@ -182,6 +202,10 @@ docker build -t demo-app:local ./app
 kind load docker-image demo-app:local --name demo
 ```
 
+Example kind image load:
+
+![kind load docker-image output](../images/kind-load-image.png)
+
 ### Apply manifests and test
 
 ```bash
@@ -192,6 +216,14 @@ kubectl get pods,svc -n demo-app
 kubectl port-forward -n demo-app svc/demo-app 8080:80
 ```
 
+Example `kubectl apply` and `kubectl get`:
+
+![kubectl apply / get output](../images/kubectl-apply-get.png)
+
+Example `kubectl port-forward`:
+
+![kubectl port-forward output](../images/kubectl-port-forward.png)
+
 Now hit:
 
 ```bash
@@ -200,7 +232,7 @@ curl -s http://localhost:8080/ready
 curl -s http://localhost:8080/
 ```
 
-## 4) CI/CD: build and publish to GHCR with GitHub Actions
+## 4) CI/CD: build and publish to Docker Hub with GitHub Actions
 
 The workflow file is already in the repo:
 
@@ -210,57 +242,36 @@ It does the core CI/CD loop:
 
 - Trigger on **push** and **pull_request**
 - Build the Docker image
-- Push to GHCR **only on push** (PRs build, but don’t publish)
+- Push to Docker Hub **only on push** (PRs build, but don’t publish)
 - Tag images with:
   - the commit SHA (`type=sha`)
   - `latest` (only on your default branch)
 
-### The GHCR “gotchas” you want to know
+### Docker Hub setup
 
-- **Package visibility**: for public repos, GHCR images are often public by default, but sometimes the package visibility needs to be explicitly set to public in GitHub UI (Package settings).
-- **Lowercase image names**: GHCR image paths are safest when **fully lowercase** (`ghcr.io/<owner>/<image>`). If your org/user has uppercase characters, normalize to lowercase in the workflow.
-- **PRs from forks**: secrets aren’t available, so publishing is typically skipped (this repo’s workflow already avoids pushing on PR events).
+1. Create a **Docker Hub** account (if you don’t have one) and a repository called `demo-app`.
+2. In Docker Hub, generate an **access token**.
+3. In your GitHub repo → **Settings → Secrets and variables → Actions**, create:
+   - `DOCKERHUB_USERNAME` — your Docker Hub username
+   - `DOCKERHUB_TOKEN` — the access token
 
-### Verify the image exists
+The workflow will log in to Docker Hub with those secrets and push images to:
 
-After you push to `main`/`master`, go to your repo’s **Actions** tab, then check **Packages** for something like:
+- `docker.io/<your-dockerhub-username>/demo-app:<git-sha>`
+- `docker.io/<your-dockerhub-username>/demo-app:latest` (only on the default branch)
 
-- `ghcr.io/<your-github-username>/demo-app:latest`
-- `ghcr.io/<your-github-username>/demo-app:<git-sha>`
-
-## 5) Deploy using the GHCR image (instead of local)
+## 5) Deploy using the Docker Hub image (instead of local)
 
 To deploy using the image produced by CI/CD, update the image in `k8s/deployment.yaml`:
 
 ```yaml
-image: ghcr.io/YOUR_USERNAME/demo-app:latest
+image: docker.io/YOUR_DOCKERHUB_USERNAME/demo-app:latest
 ```
 
 Then apply again:
 
 ```bash
 kubectl apply -f k8s/deployment.yaml
-```
-
-### Private image? Create an imagePullSecret
-
-If the package is private, Kubernetes will fail with `ImagePullBackOff`.
-
-Create a registry secret (use a GitHub PAT with `read:packages`):
-
-```bash
-kubectl -n demo-app create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io \
-  --docker-username=YOUR_USERNAME \
-  --docker-password=YOUR_PAT \
-  --docker-email=YOUR_EMAIL
-```
-
-Then reference it in the Pod spec (`spec.template.spec.imagePullSecrets`):
-
-```yaml
-imagePullSecrets:
-  - name: ghcr-pull
 ```
 
 ## 6) Optional IaC: Terraform (Kubernetes provider)

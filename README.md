@@ -1,12 +1,12 @@
 # End-to-End DevOps Pipeline — Portfolio Project
 
-A **production-style** CI/CD pipeline that matches what clients ask for on Upwork: **GitHub Actions → Docker → Kubernetes**, with optional **Terraform** for infrastructure. Fully runnable for **free** (no paid cloud required).
+A **production-style** CI/CD pipeline that matches what clients ask for on Upwork: **GitHub Actions → Docker → Kubernetes**, with optional **Terraform** for infrastructure. Images are pushed to **Docker Hub**. Fully runnable for **free** (no paid cloud required).
 
 ## What This Demonstrates
 
 - **CI/CD**: GitHub Actions — build, test, push image on every push/PR
 - **Containers**: Multi-stage Dockerfile, small image, health checks
-- **Registry**: GitHub Container Registry (GHCR) — free for public images
+- **Registry**: Docker Hub — simple, widely used container registry
 - **Orchestration**: Kubernetes manifests (Deployment, Service, optional Ingress)
 - **IaC**: Terraform examples for Kubernetes namespace/resources (or AWS if you add credentials)
 - **Local run**: Use minikube/kind + `kubectl` to deploy without cloud
@@ -46,19 +46,19 @@ devops-e2e-pipeline/
 │   └── k8s.tf
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yaml       # Build, test, push to GHCR
+│       └── ci-cd.yaml       # Build, test, push to Docker Hub
 └── README.md
 ```
 
 ## CI/CD Flow (GitHub Actions)
 
 1. **On push/PR**: Checkout → Set up Python → Lint (optional) → Build Docker image
-2. **On push to main**: Tag image (SHA + `latest`) → Push to `ghcr.io/<your-org>/demo-app`
-3. **Deploy**: Manual or automated (e.g. `kubectl set image` or Argo CD) using the image from GHCR
+2. **On push to main**: Tag image (SHA + `latest`) → Push to `docker.io/<your-dockerhub-username>/demo-app`
+3. **Deploy**: Manual or automated (e.g. `kubectl set image` or Argo CD) using the image from Docker Hub
 
-No secrets required for **public** repos; `GITHUB_TOKEN` can push to GHCR.
+Requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` GitHub secrets for Docker Hub authentication.
 
-## Tech Stack (Aligned with Upwork Demand)
+## Tech Stack
 
 | Skill        | How It's Used                          |
 |-------------|-----------------------------------------|
