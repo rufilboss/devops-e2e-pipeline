@@ -314,8 +314,4 @@ kind load docker-image demo-app:local --name demo
 - Add GitOps (Argo CD or Flux) so deploys happen via manifests, not imperative kubectl
 - Add a separate deploy job for a real cluster (self-hosted runner or GitOps sync)
 
-## Copy/paste links for dev.to
-
-- **Repo**: `<YOUR_REPO_URL>`
-- **Tags**: `devops` `cicd` `githubactions` `docker` `kubernetes` `ghcr` `terraform`
-
+- **Repo**: `https://github.com/rufilboss/devops-e2e-pipeline`
