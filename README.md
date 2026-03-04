@@ -53,7 +53,7 @@ devops-e2e-pipeline/
 ## CI/CD Flow (GitHub Actions)
 
 1. **On push/PR**: Checkout → Set up Python → Lint (optional) → Build Docker image
-2. **On push to main**: Tag image (SHA + `latest`) → Push to `docker.io/<your-dockerhub-username>/demo-app`
+2. **On push to main**: Tag image (SHA + `latest`) → Push to `docker.io/asruf/demo-app`
 3. **Deploy**: Manual or automated (e.g. `kubectl set image` or Argo CD) using the image from Docker Hub
 
 Requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` GitHub secrets for Docker Hub authentication.

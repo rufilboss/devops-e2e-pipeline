@@ -17,9 +17,10 @@ spec:
     spec:
       containers:
         - name: app
-          # Replace with your GHCR image when using CI/CD:
-          # image: ghcr.io/YOUR_USERNAME/demo-app:latest
-          image: demo-app:local
+          # Local image for kind/minikube:
+          # image: demo-app:local
+          # Docker Hub image (asruf/demo-app) when using CI/CD:
+          image: docker.io/asruf/demo-app:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

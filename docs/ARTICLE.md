@@ -257,15 +257,15 @@ It does the core CI/CD loop:
 
 The workflow will log in to Docker Hub with those secrets and push images to:
 
-- `docker.io/<your-dockerhub-username>/demo-app:<git-sha>`
-- `docker.io/<your-dockerhub-username>/demo-app:latest` (only on the default branch)
+- `docker.io/asruf/demo-app:<git-sha>`
+- `docker.io/asruf/demo-app:latest` (only on the default branch)
 
 ## 5) Deploy using the Docker Hub image (instead of local)
 
-To deploy using the image produced by CI/CD, update the image in `k8s/deployment.yaml`:
+To deploy using the image produced by CI/CD, update the image in `k8s/deployment.yaml` (already set in this repo):
 
 ```yaml
-image: docker.io/YOUR_DOCKERHUB_USERNAME/demo-app:latest
+image: docker.io/asruf/demo-app:latest
 ```
 
 Then apply again:
